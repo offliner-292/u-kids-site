@@ -4,6 +4,9 @@
 const $=id=>document.getElementById(id);
 const esc=(s='')=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ALMATY_OFFSET_MS=5*60*60*1000,DAYMS=864e5,MAXFILE=25*1024*1024;
+const CLOUD_URL='https://rgvzyohqvydrcgcqgwba.supabase.co';
+const CLOUD_KEY='sb_publishable_Zbdu5PNBRC0vmU4ej3iEwQ_9OmT7wWJ';
+let cloudReady=false,cloudOnline=false,cloudDirty=false,cloudSaving=false,cloudTimer=0,cloudUpdatedAt=null,cloudPollTimer=0,cloudBooted=false,cloudPulling=false;
 
 /* ---------- хранилище ---------- */
 const K={users:'uroki.users',tasks:'uroki.tasks',logs:'uroki.logs',branches:'uroki.branches',groups:'uroki.groups',lock:'uroki.lock'};
@@ -35,8 +38,101 @@ Object.values(groups).flat().forEach(g=>{if(g.schedule==='Дневная')g.sche
 tasks=tasks.filter(t=>t&&typeof t==='object');
 tasks.forEach(t=>{if(!t.id)t.id=uid('T');if(!t.branch)t.branch='Центр';if(typeof t.hasFile!=='boolean')t.hasFile=false;if(t.taskType==='Тест')t.taskType='Документ';delete t.blob});
 function uid(p){return p+'-'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,5).toUpperCase()}
-function saveAll(){put('users',users);put('tasks',tasks);put('logs',logs);put('branches',branches);put('groups',groups)}
+function saveAll(){put('users',users);put('tasks',tasks);put('logs',logs);put('branches',branches);put('groups',groups);if(cloudReady)queueCloudSave()}
 saveAll();
+
+/* ---------- облачная демо-синхронизация ---------- */
+
+async function cloudRequest(path,options={}){
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),path.includes('/storage/')?60000:12000);
+  let response;
+  try{
+    response=await fetch(CLOUD_URL+path,{...options,headers:{...(options.headers||{}),apikey:CLOUD_KEY},cache:'no-store',signal:controller.signal});
+  }finally{clearTimeout(timeout)}
+  if(!response.ok){const detail=await response.text().catch(()=> '');throw new Error(`Supabase ${response.status}: ${detail.slice(0,220)}`)}
+  return response;
+}
+function cloudPayload(){return {users,tasks,logs,branches,groups}}
+function writeLocalPayload(p){
+  put('users',p.users);put('tasks',p.tasks);put('logs',p.logs);put('branches',p.branches);put('groups',p.groups);
+}
+async function readCloudRow(){
+  const response=await cloudRequest('/rest/v1/ukids_demo_state?select=payload,updated_at&id=eq.1');
+  const rows=await response.json();
+  if(!Array.isArray(rows)||!rows[0])throw new Error('Не найдена строка демо-базы');
+  return rows[0];
+}
+function updateCloudBadge(){
+  const el=$('cloudStatus');if(!el)return;
+  el.innerHTML=`<i class="dot" style="background:${cloudOnline?'#36a276':'#c95d5d'}"></i> Доступ 00:00–23:00 · ${cloudOnline?'облако':'локально'}`;
+}
+function applyCloudPayload(p,updatedAt){
+  if(!p||!Array.isArray(p.users)||!p.users.length)return false;
+  users=p.users.filter(x=>x&&typeof x==='object');
+  if(!users.some(x=>x.role==='Ментор'))users.unshift({...SEED_MENTOR});
+  tasks=Array.isArray(p.tasks)?p.tasks.filter(x=>x&&typeof x==='object'):[];
+  logs=Array.isArray(p.logs)?p.logs.filter(x=>x&&typeof x==='object'):[];
+  branches=Array.isArray(p.branches)&&p.branches.length?p.branches.filter(x=>typeof x==='string'&&x):['Центр','Южный'];
+  groups=p.groups&&typeof p.groups==='object'&&!Array.isArray(p.groups)?p.groups:{'Центр':[{name:'Группа А',schedule:'Утренняя'},{name:'Группа В',schedule:'Послеобеда'}],'Южный':[{name:'Группа Б',schedule:'Утренняя'}]};
+  branches.forEach(b=>{if(!Array.isArray(groups[b]))groups[b]=[]});
+  cloudUpdatedAt=updatedAt||cloudUpdatedAt;
+  writeLocalPayload(cloudPayload());
+  return true;
+}
+function refreshAfterCloud(){
+  if(!cloudBooted)return;
+  if(me){
+    const next=users.find(x=>x.id===me.id&&x.active!==false&&x.passHash);
+    if(!next){me=null;try{sessionStorage.removeItem('uroki.sid')}catch(e){}loginScreen()}
+    else{me=next;next.mustChange?changeScreen():render()}
+  }else boot();
+}
+async function writeCloudState(){
+  if(!cloudReady||cloudSaving||!cloudDirty)return false;
+  cloudSaving=true;cloudDirty=false;
+  try{
+    const response=await cloudRequest('/rest/v1/ukids_demo_state?id=eq.1&select=updated_at',{method:'PATCH',headers:{'Content-Type':'application/json','Prefer':'return=representation'},body:JSON.stringify({payload:cloudPayload(),updated_at:new Date().toISOString()})});
+    const rows=await response.json();if(rows[0]?.updated_at)cloudUpdatedAt=rows[0].updated_at;
+    cloudOnline=true;return true;
+  }catch(e){
+    cloudDirty=true;cloudOnline=false;console.warn('Не удалось синхронизировать демо-базу',e);return false;
+  }finally{
+    cloudSaving=false;updateCloudBadge();
+    if(cloudDirty&&cloudReady){clearTimeout(cloudTimer);cloudTimer=setTimeout(writeCloudState,8000)}
+  }
+}
+function queueCloudSave(){
+  cloudDirty=true;clearTimeout(cloudTimer);cloudTimer=setTimeout(writeCloudState,500);
+}
+async function pollCloudState(){
+  if(!cloudReady||cloudSaving||cloudDirty||cloudPulling||document.hidden)return;
+  cloudPulling=true;
+  try{
+    const row=await readCloudRow();
+    cloudOnline=true;
+    if(row.updated_at&&row.updated_at!==cloudUpdatedAt&&applyCloudPayload(row.payload,row.updated_at))refreshAfterCloud();
+  }catch(e){cloudOnline=false;console.warn('Не удалось обновить демо-базу',e)}
+  finally{cloudPulling=false;updateCloudBadge()}
+}
+async function startCloud(){
+  try{
+    const row=await readCloudRow(),p=row.payload||{};
+    if(Array.isArray(p.users)&&p.users.length){
+      if(!applyCloudPayload(p,row.updated_at))throw new Error('Некорректное состояние демо-базы');
+      cloudReady=true;cloudOnline=true;
+    }else{
+      // Do not upload this browser's old local records into the public demo database.
+      users=[{...SEED_MENTOR}];tasks=[];logs=[];branches=['Центр','Южный'];
+      groups={'Центр':[{name:'Группа А',schedule:'Утренняя'},{name:'Группа В',schedule:'Послеобеда'}],'Южный':[{name:'Группа Б',schedule:'Утренняя'}]};
+      try{sessionStorage.removeItem('uroki.sid')}catch(e){}
+      writeLocalPayload(cloudPayload());cloudUpdatedAt=row.updated_at;cloudReady=true;cloudOnline=true;cloudDirty=true;
+      await writeCloudState();
+    }
+    cloudPollTimer=setInterval(pollCloudState,5000);
+  }catch(e){
+    cloudReady=false;cloudOnline=false;console.warn('Облачная демо-база пока недоступна',e);
+  }finally{cloudBooted=true;updateCloudBadge()}
+}
 
 /* ---------- время (Алматы) ---------- */
 let skew=0;
@@ -93,9 +189,19 @@ function setLock(v){try{localStorage.setItem(K.lock,JSON.stringify(v))}catch(e){
 /* ---------- файлы (IndexedDB) ---------- */
 let dbp;
 const db=()=>dbp||(dbp=new Promise((res,rej)=>{const r=indexedDB.open('uroki',1);r.onupgradeneeded=()=>r.result.createObjectStore('files');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
-async function fput(id,blob){const d=await db();return new Promise((res,rej)=>{const t=d.transaction('files','readwrite');t.objectStore('files').put(blob,id);t.oncomplete=res;t.onerror=()=>rej(t.error)})}
-async function fget(id){const d=await db();return new Promise((res,rej)=>{const r=d.transaction('files').objectStore('files').get(id);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
-async function fdel(id){try{const d=await db();await new Promise(res=>{const t=d.transaction('files','readwrite');t.objectStore('files').delete(id);t.oncomplete=res;t.onerror=res})}catch(e){}}
+async function localFilePut(id,blob){const d=await db();return new Promise((res,rej)=>{const t=d.transaction('files','readwrite');t.objectStore('files').put(blob,id);t.oncomplete=res;t.onerror=()=>rej(t.error)})}
+async function fput(id,blob){
+  await localFilePut(id,blob);
+  if(cloudReady)await cloudRequest('/storage/v1/object/ukids-demo-files/'+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':blob.type||'application/octet-stream','x-upsert':'true'},body:blob});
+}
+async function fget(id){
+  if(cloudReady){try{const response=await cloudRequest('/storage/v1/object/ukids-demo-files/'+encodeURIComponent(id));const blob=await response.blob();await localFilePut(id,blob);return blob}catch(e){}}
+  const d=await db();return new Promise((res,rej)=>{const r=d.transaction('files').objectStore('files').get(id);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})
+}
+async function fdel(id){
+  if(cloudReady){try{await cloudRequest('/storage/v1/object/ukids-demo-files',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({prefixes:[id]})})}catch(e){console.warn('Не удалось удалить файл из облака',e)}}
+  try{const d=await db();await new Promise(res=>{const t=d.transaction('files','readwrite');t.objectStore('files').delete(id);t.oncomplete=res;t.onerror=res})}catch(e){}
+}
 const EXT={
   'Картинка':['jpg','jpeg','png','gif','webp','bmp','avif','tif','tiff'],
   'Документ':['pdf','doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp','rtf','txt','csv'],
@@ -200,7 +306,7 @@ function ferr(f,msg){const e=f.querySelector('.err');if(e)e.textContent=msg;retu
 let toastT;function toast(s){const t=$('toast');t.textContent=s;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2600)}
 
 /* ---------- экраны входа ---------- */
-function authShell(inner){return `<div class="welcome"><div class="login"><div class="brand"><img class="brandlogo" src="ukids-logo.jpg" alt="U kids"></div>${inner}</div></div>`}
+function authShell(inner){return `<div class="welcome"><div class="login"><div class="brand"><img class="brandlogo" src="ukids-logo.jpg" alt="U kids"></div>${inner}<div class="notice" role="note"><b>Публичная демо-версия.</b> Данные общие для посетителей. Используйте вымышленные имена, телефоны и уникальные пароли; не добавляйте сведения о детях или личные файлы.${cloudOnline?' Облако подключено.':' Сейчас доступен только локальный режим.'}</div></div></div>`}
 function loginScreen(){
   $('app').innerHTML=authShell(`<h1>Рады видеть вас</h1><p class="sub">Войдите в кабинет учебного центра.</p><form data-form="login" novalidate><label for="l_phone">Номер телефона</label><input id="l_phone" name="phone" type="tel" autocomplete="username" placeholder="+7 7XX XXX-XX-XX"><label for="l_pw">Пароль</label><input id="l_pw" name="password" type="password" autocomplete="current-password" placeholder="Введите пароль"><div class="err" id="lerr" role="alert"></div><button class="btn" type="submit">Войти в кабинет</button></form><div class="loginfoot">Доступ только по приглашению ментора<br><br>Забыли пароль? Обратитесь к ментору — он выдаст временный.</div>`);
   applyProtect();
@@ -240,7 +346,7 @@ function avatarContent(u){return u.photoData?`<img src="${u.photoData}" alt="Ф�
 function shell(){
   const menu=isM()?['Главная','Задания','Календарь','Пользователи','Филиалы','Журнал','Настройки']:['Главная','Задания'];
   if(page!=='Профиль'&&!menu.includes(page))page='Главная';
-  $('app').innerHTML=`<div class="app"><aside class="side"><div class="brand"><img class="brandlogo" src="ukids-logo.jpg" alt="U kids"></div><div class="workspace"><b>${isM()?'U kids · Администратор':esc(me.branch)}</b>Алматы · рабочее пространство</div><div class="navlabel">Меню</div><nav class="nav">${menu.map(x=>`<button class="${page===x?'active':''}" data-act="go" data-page="${x}"><span class="ico">${icons[x]}</span><span>${x}</span></button>`).join('')}</nav><div class="sidebottom"><div class="profile-mini" role="button" tabindex="0" data-act="go" data-page="Профиль" title="Профиль"><div class="avatar">${avatarContent(me)}</div><div><b>${esc(me.name)}</b><small>${isM()?'Администратор сайта':esc(me.role)+' · '+esc(me.id)}</small></div></div></div></aside><main class="main"><div class="top"><div class="crumb">U kids <span style="padding:0 6px">/</span> ${page}</div><div class="topright"><div class="status"><i class="dot"></i> Доступ 00:00–23:00 · Алматы</div><div class="date" id="date"></div><button class="btn secondary small" data-act="logout">Выйти</button><div class="avatar" role="button" tabindex="0" data-act="go" data-page="Профиль" title="Профиль">${avatarContent(me)}</div></div></div><div id="content"></div></main></div>`;
+  $('app').innerHTML=`<div class="app"><aside class="side"><div class="brand"><img class="brandlogo" src="ukids-logo.jpg" alt="U kids"></div><div class="workspace"><b>${isM()?'U kids · Администратор':esc(me.branch)}</b>Алматы · рабочее пространство</div><div class="navlabel">Меню</div><nav class="nav">${menu.map(x=>`<button class="${page===x?'active':''}" data-act="go" data-page="${x}"><span class="ico">${icons[x]}</span><span>${x}</span></button>`).join('')}</nav><div class="sidebottom"><div class="profile-mini" role="button" tabindex="0" data-act="go" data-page="Профиль" title="Профиль"><div class="avatar">${avatarContent(me)}</div><div><b>${esc(me.name)}</b><small>${isM()?'Администратор сайта':esc(me.role)+' · '+esc(me.id)}</small></div></div></div></aside><main class="main"><div class="top"><div class="crumb">U kids <span style="padding:0 6px">/</span> ${page}</div><div class="topright"><div class="status" id="cloudStatus"><i class="dot" style="background:${cloudOnline?'#36a276':'#c95d5d'}"></i> Доступ 00:00–23:00 · ${cloudOnline?'облако':'локально'}</div><div class="date" id="date"></div><button class="btn secondary small" data-act="logout">Выйти</button><div class="avatar" role="button" tabindex="0" data-act="go" data-page="Профиль" title="Профиль">${avatarContent(me)}</div></div></div><div id="content"></div></main></div>`;
   $('date').textContent=fmtAlmaty(now(),{weekday:'short',day:'numeric',month:'long'});
   render();applyProtect();
 }
@@ -668,5 +774,6 @@ document.addEventListener('keydown',e=>{
 });
 document.addEventListener('contextmenu',e=>{if(me&&!isM()&&e.target.closest&&e.target.closest('.task,.calday,.previewbox'))e.preventDefault()});
 
-boot();
+$('app').innerHTML=authShell('<p class="sub">Подключаем демо-базу…</p>');
+startCloud().finally(boot);
 })();
