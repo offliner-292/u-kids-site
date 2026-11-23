@@ -415,14 +415,28 @@ function viewTodayDownloads(){
   const items=rows.map(l=>`<div class="event"><i class="eventdot"></i><div><b>${esc(l.user||'Пользователь')}</b><small>${esc(l.what||'Скачал(а) файл')}${l.ts?' · '+fmtTs(l.ts):''}${isM()&&l.branch?' · '+esc(l.branch):''}</small></div></div>`).join('');
   openModal('mDownloads',`<h2 id="mDownloads-t">Скачивания сегодня</h2><p>${isM()?'По всему учебному центру.':`В филиале «${esc(me.branch)}».`}</p><div class="activity">${items||'<p class="sub">Сегодня скачиваний пока нет.</p>'}</div><div class="modalfoot"><button type="button" class="btn secondary" data-act="close">Закрыть</button></div>`);
 }
+function viewGroupChildren(bi,gi){
+  const b=branches[bi],g=(groups[b]||[])[gi];if(!g)return;
+  if(!isM()&&(b!==me.branch||g.name!==me.group))return toast('Можно просматривать детей только своей группы');
+  const kids=ensureChildren(g);
+  const rows=kids.map(c=>`<div class="task"><div class="avatar">${esc(initials(c.fullName||'Ребёнок'))}</div><div class="taskinfo"><b>${esc(c.fullName||'Без имени')}</b><small>${esc(c.status||'Ходит')}</small></div></div>`).join('');
+  const mentorAction=isM()?`<button type="button" class="btn" data-act="openRoster" data-i="${bi}" data-j="${gi}">Открыть карточку группы</button>`:'';
+  openModal('mGroupChildren',`<h2 id="mGroupChildren-t">Дети · ${esc(g.name)}</h2><p>${esc(b)} · ${esc(g.schedule||'Расписание не указано')}</p><div>${rows||'<p class="sub">В этой группе пока нет детей.</p>'}</div><div class="modalfoot"><button type="button" class="btn secondary" data-act="close">Назад</button>${mentorAction}</div>`,{wide:true});
+}
 function viewBranchGroups(){
   const branchList=isM()?branches:[me.branch].filter(Boolean);
   const html=branchList.map(b=>{
-    const items=(groups[b]||[]).map(g=>`<div class="task"><div class="taskinfo"><b>${esc(g.name)}</b><small>${esc(g.schedule||'Расписание не указано')}</small></div></div>`).join('');
+    const bi=branches.indexOf(b);
+    const items=(groups[b]||[]).map((g,j)=>{
+      const canView=isM()||g.name===me.group;
+      const row=`<div class="taskinfo"><b>${esc(g.name)}</b><small>${esc(g.schedule||'Расписание не указано')} · ${ensureChildren(g).length} детей</small></div><span class="pill">${canView?'Посмотреть детей →':'Группа'}</span>`;
+      return canView?`<button type="button" class="task" style="width:100%;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer" data-act="viewGroupChildren" data-i="${bi}" data-j="${j}">${row}</button>`:`<div class="task">${row}</div>`;
+    }).join('');
     return `<section style="margin-bottom:16px"><h3 style="margin:0 0 8px">${esc(b)}</h3>${items||'<p class="sub">В филиале пока нет групп.</p>'}</section>`;
   }).join('');
-  openModal('mBranchGroups',`<h2 id="mBranchGroups-t">${isM()?'Группы по филиалам':`Группы · ${esc(me.branch)}`}</h2><div>${html}</div><div class="modalfoot"><button type="button" class="btn secondary" data-act="close">Закрыть</button></div>`);
+  openModal('mBranchGroups',`<h2 id="mBranchGroups-t">${isM()?'Группы по филиалам':`Группы · ${esc(me.branch)}`}</h2><div>${html}</div><div class="modalfoot"><button type="button" class="btn secondary" data-act="close">Закрыть</button></div>`,{wide:true});
 }
+
 function eventRow(l){return `<div class="event"><i class="eventdot"></i><div><b>${esc(l.user)} · ${esc(l.what)}</b><small>${l.ts?fmtTs(l.ts):esc(l.time||'')}</small></div></div>`}
 
 /* ---------- задания ---------- */
@@ -880,13 +894,13 @@ document.addEventListener('submit',e=>{
 /* ---------- действия ---------- */
 const MGR_ACTS=['openTask','addTaskDay','editTask','delTask','openInvite','editUser','toggleUser','delUser','resetUser','addBranch','editBranch','delBranch','groups','editGroup','delGroup','selectBranch','openRoster','addChild','editChild','delChild','addSubscription','editSubscription','delSubscription','day'];
 const A={
-  go:d=>go(d.page),viewColleagues:()=>viewColleagues(),viewDownloads:()=>viewTodayDownloads(),viewGroups:()=>viewBranchGroups(),logout:()=>logout(),close:(d,el)=>closeEl(el.closest('.overlay')),
+  go:d=>go(d.page),viewColleagues:()=>viewColleagues(),viewDownloads:()=>viewTodayDownloads(),viewGroups:()=>viewBranchGroups(),viewGroupChildren:d=>viewGroupChildren(+d.i,+d.j),logout:()=>logout(),close:(d,el)=>closeEl(el.closest('.overlay')),
   confirmYes:()=>{const cb=confirmCb;confirmCb=null;closeModal('mConfirm');if(cb)cb()},
   openTask:()=>taskForm(null),addTaskDay:d=>taskForm(null,d.day),editTask:d=>{const t=tasks.find(x=>x.id===d.id);if(t)taskForm(t)},delTask:d=>delTask(d.id),
   download:d=>guard(()=>download(d.id)),preview:d=>guard(()=>preview(d.id)),
   calPrev:()=>calShift(-1),calNext:()=>calShift(1),calToday:()=>{const t=dayKey().split('-');cal.y=+t[0];cal.m=+t[1]-1;render()},day:d=>showDay(d.day),
   openInvite:inviteForm,editUser:d=>editUser(d.id),toggleUser:d=>toggleUser(d.id),delUser:d=>delUser(d.id),resetUser:d=>resetUser(d.id),
-  addBranch:()=>branchForm(),editBranch:d=>branchForm(d.i),delBranch:d=>delBranch(d.i),groups:d=>groupsModal(d.i),editGroup:d=>editGroup(d.i,d.j),delGroup:d=>delGroup(d.i,d.j),addSubscription:()=>subscriptionForm(),editSubscription:d=>subscriptionForm(d.id),delSubscription:d=>deleteSubscription(d.id),selectBranch:d=>{selectedGroupBranch=branches[+d.i]||'';rosterGroupIndex=null;go('Группы')},openRoster:d=>{selectedGroupBranch=branches[+d.i]||'';rosterGroupIndex=+d.j;go('Группы')},backGroups:()=>{rosterGroupIndex=null;go('Группы')},addChild:d=>childForm(+d.i,+d.j),editChild:d=>childForm(+d.i,+d.j,+d.k),delChild:d=>deleteChild(+d.i,+d.j,+d.k)
+  addBranch:()=>branchForm(),editBranch:d=>branchForm(d.i),delBranch:d=>delBranch(d.i),groups:d=>groupsModal(d.i),editGroup:d=>editGroup(d.i,d.j),delGroup:d=>delGroup(d.i,d.j),addSubscription:()=>subscriptionForm(),editSubscription:d=>subscriptionForm(d.id),delSubscription:d=>deleteSubscription(d.id),selectBranch:d=>{selectedGroupBranch=branches[+d.i]||'';rosterGroupIndex=null;go('Группы')},openRoster:d=>{closeAllModals();selectedGroupBranch=branches[+d.i]||'';rosterGroupIndex=+d.j;go('Группы')},backGroups:()=>{rosterGroupIndex=null;go('Группы')},addChild:d=>childForm(+d.i,+d.j),editChild:d=>childForm(+d.i,+d.j,+d.k),delChild:d=>deleteChild(+d.i,+d.j,+d.k)
 };
 document.addEventListener('click',e=>{
   if(e.target.classList&&e.target.classList.contains('overlay')&&e.target.dataset.closable){closeEl(e.target);return}
