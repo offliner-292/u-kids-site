@@ -66,7 +66,7 @@ async function readCloudRow(){
 }
 function updateCloudBadge(){
   const el=$('cloudStatus');if(!el)return;
-  el.innerHTML=`<i class="dot" style="background:${cloudOnline?'#36a276':'#c95d5d'}"></i> Доступ 00:00–23:00 · ${cloudOnline?'облако':'локально'}`;
+  el.innerHTML=`<i class="dot" style="background:${cloudOnline?'#36a276':'#c95d5d'}"></i> Доступ 06:00–20:00 · ${cloudOnline?'облако':'локально'}`;
 }
 function applyCloudPayload(p,updatedAt){
   if(!p||!Array.isArray(p.users)||!p.users.length)return false;
@@ -147,7 +147,7 @@ const fmtAlmaty=(d,options)=>new Intl.DateTimeFormat('ru-RU',{timeZone:'UTC',...
 const dayKey=d=>{const x=almatyDate(d);return `${x.getUTCFullYear()}-${String(x.getUTCMonth()+1).padStart(2,'0')}-${String(x.getUTCDate()).padStart(2,'0')}`};
 const hourNow=()=>almatyDate().getUTCHours();
 const timeNow=()=>{const x=almatyDate();return `${String(x.getUTCHours()).padStart(2,'0')}:${String(x.getUTCMinutes()).padStart(2,'0')}`};
-const isOpen=()=>{const h=hourNow();return h>=0&&h<23};
+const isOpen=()=>{const h=hourNow();return h>=6&&h<20};
 const displayDay=d=>d?new Intl.DateTimeFormat('ru-RU',{timeZone:'UTC',day:'numeric',month:'long',year:'numeric'}).format(new Date(d+'T12:00:00Z')):'Дата не задана';
 const dayLabel=d=>d===dayKey()?'Сегодня':displayDay(d);
 function greeting(){const h=hourNow();return h>=5&&h<12?'Доброе утро':h>=12&&h<18?'Добрый день':h>=18&&h<23?'Добрый вечер':'Доброй ночи'}
@@ -160,7 +160,7 @@ function fmtTs(v){
 }
 
 /* ---------- состояние ---------- */
-let me=null,page='Главная',search='',groupFilter='Все группы',typeFilter='Все типы',sortBy='dateDesc',busy=false,confirmCb=null,openDayKey=null,selectedGroupBranch='',rosterGroupIndex=null;
+let me=null,page='Главная',search='',groupFilter='Все группы',taskBranchFilter='Все филиалы',typeFilter='Все типы',sortBy='dateDesc',busy=false,confirmCb=null,openDayKey=null,selectedGroupBranch='',rosterGroupIndex=null;
 const t0=dayKey().split('-');const cal={y:+t0[0],m:+t0[1]-1};
 const isM=()=>!!me&&me.role==='Ментор';
 function need(){const m=me&&users.find(u=>u.id===me.id);if(m&&m.role==='Ментор'&&m.active!==false)return true;toast('Это действие доступно только ментору');return false}
@@ -290,7 +290,7 @@ const sameGroup=t=>String(t.branch||'Центр').trim().toLocaleLowerCase('ru')
 const assignedToMe=t=>!t.userId||String(t.userId)===String(me.id);
 function visibleTasks(){return isM()?tasks:tasks.filter(t=>t.accessDate===dayKey()&&(t.userId?String(t.userId)===String(me.id):sameGroup(t)))}
 const canSee=t=>isM()||(t.accessDate===dayKey()&&(t.userId?String(t.userId)===String(me.id):sameGroup(t)));
-function gate(){if(!isM()&&!isOpen()){toast('Файлы доступны с 00:00 до 23:00 по Алматы');return false}return true}
+function gate(){if(!isM()&&!isOpen()){toast('Файлы доступны с 06:00 до 20:00 по Алматы');return false}return true}
 
 /* ---------- окна ---------- */
 function openModal(id,html,opts={}){
@@ -349,7 +349,7 @@ function avatarContent(u){return u.photoData?`<img src="${u.photoData}" alt="Ф�
 function shell(){
   const menu=isM()?['Главная','Задания','Календарь','Пользователи','Филиалы','Группы','Абонементы','Журнал','Настройки','Профиль']:['Главная','Задания','Профиль'];
   if(page!=='Профиль'&&!menu.includes(page))page='Главная';
-  $('app').innerHTML=`<div class="app"><aside class="side"><div class="brand"><img class="brandlogo" src="ukids-logo.jpg" alt="U kids"></div><div class="workspace"><b>${isM()?'U kids · Администратор':esc(me.branch)}</b>Алматы · рабочее пространство</div><div class="navlabel">Меню</div><nav class="nav${menu.length>4?' nav-many':''}">${menu.map(x=>`<button class="${page===x?'active':''}" data-act="go" data-page="${x}"><span class="ico">${icons[x]}</span><span>${x}</span></button>`).join('')}</nav><div class="sidebottom"><div class="profile-mini" role="button" tabindex="0" data-act="go" data-page="Профиль" title="Профиль"><div class="avatar">${avatarContent(me)}</div><div><b>${esc(me.name)}</b><small>${isM()?'Администратор сайта':esc(me.role)+' · '+esc(me.id)}</small></div></div></div></aside><main class="main"><div class="top"><div class="crumb">U kids <span style="padding:0 6px">/</span> ${page}</div><div class="topright"><div class="status" id="cloudStatus"><i class="dot" style="background:${cloudOnline?'#36a276':'#c95d5d'}"></i> Доступ 00:00–23:00 · ${cloudOnline?'облако':'локально'}</div><div class="date" id="date"></div><button class="btn secondary small" data-act="logout">Выйти</button><div class="avatar" role="button" tabindex="0" data-act="go" data-page="Профиль" title="Профиль">${avatarContent(me)}</div></div></div><div id="content"></div></main></div>`;
+  $('app').innerHTML=`<div class="app"><aside class="side"><div class="brand" role="button" tabindex="0" data-act="go" data-page="Главная" title="На главную" style="cursor:pointer"><img class="brandlogo" src="ukids-logo.jpg" alt="U kids"></div><div class="workspace"><b>${isM()?'U kids · Администратор':esc(me.branch)}</b>Алматы · рабочее пространство</div><div class="navlabel">Меню</div><nav class="nav${menu.length>4?' nav-many':''}">${menu.map(x=>`<button class="${page===x?'active':''}" data-act="go" data-page="${x}"><span class="ico">${icons[x]}</span><span>${x}</span></button>`).join('')}</nav><div class="sidebottom"><div class="profile-mini" role="button" tabindex="0" data-act="go" data-page="Профиль" title="Профиль"><div class="avatar">${avatarContent(me)}</div><div><b>${esc(me.name)}</b><small>${isM()?'Администратор сайта':esc(me.role)+' · '+esc(me.id)}</small></div></div></div></aside><main class="main"><div class="top"><div class="crumb">U kids <span style="padding:0 6px">/</span> ${page}</div><div class="topright"><div class="status" id="cloudStatus"><i class="dot" style="background:${cloudOnline?'#36a276':'#c95d5d'}"></i> Доступ 06:00–20:00 · ${cloudOnline?'облако':'локально'}</div><div class="date" id="date"></div><button class="btn secondary small" data-act="logout">Выйти</button><div class="avatar" role="button" tabindex="0" data-act="go" data-page="Профиль" title="Профиль">${avatarContent(me)}</div></div></div><div id="content"></div></main></div>`;
   $('date').textContent=fmtAlmaty(now(),{weekday:'short',day:'numeric',month:'long'});
   render();applyProtect();
 }
@@ -391,7 +391,7 @@ function home(){
   const dl=logs.filter(l=>l.kind==='download'&&l.day===today&&(isM()||l.branch===me.branch)).length;
   const first=me.name.split(' ')[0];
   const who=first;
-  const h=hourNow(),pct=Math.max(0,Math.min(100,Math.round((h+almatyDate().getUTCMinutes()/60)/23*100)));
+  const elapsed=hourNow()+almatyDate().getUTCMinutes()/60,pct=Math.max(0,Math.min(100,Math.round((elapsed-6)/14*100)));
   const list=visibleTasks().filter(t=>t.accessDate===today).slice(0,4);
   const fourth=isM()?`<div class="stat" role="button" tabindex="0" data-act="viewGroups"><div class="stat-label">Активные филиалы <span class="spark">⌖</span></div><div class="stat-num">${branches.length}</div><div class="stat-note">${esc(branches.join(', '))||'—'}</div></div>`:`<div class="stat" role="button" tabindex="0" data-act="viewGroups"><div class="stat-label">Группы <span class="spark">⌖</span></div><div class="stat-num">${(groups[me.branch]||[]).length}</div><div class="stat-note">в вашем филиале</div></div>`;
   return `<div class="heading"><div><h1>${greeting()}, ${esc(who)} 👋</h1><p class="sub">${isM()?'Вот что происходит в вашем центре сегодня.':'Вот что происходит в филиале «'+esc(me.branch)+'» сегодня.'}</p></div>${isM()?'<button class="btn" data-act="openTask">＋ Добавить задание</button>':''}</div>
@@ -399,7 +399,7 @@ function home(){
 <div class="stat" role="button" tabindex="0" data-act="go" data-page="Задания"><div class="stat-label">Задания на сегодня <span class="spark">▤</span></div><div class="stat-num">${todays.length}</div><div class="stat-note">${isM()?'для разных групп':'для вашего филиала'}</div></div>
 <div class="stat" role="button" tabindex="0" data-act="viewDownloads"><div class="stat-label">Скачивания сегодня <span class="spark">↓</span></div><div class="stat-num">${dl}</div><div class="stat-note">за текущий день</div></div>${fourth}</div>
 <div class="grid"><section class="card"><div class="cardhead"><h2>Задания на сегодня</h2><button class="link" data-act="go" data-page="Задания">Все задания →</button></div>${list.map(taskRow).join('')||'<p class="sub">На сегодня заданий пока нет.</p>'}</section>
-<section class="card"><div class="cardhead"><h2>Доступ к заданиям</h2><span class="pill" style="background:${isOpen()?'var(--mint)':'#fff0ee'};color:${isOpen()?'var(--green)':'#b84f4f'}">${isOpen()?'Открыт':'Закрыт'}</span></div><div class="today"><div class="todaytop"><b>${fmtAlmaty(now(),{day:'numeric',month:'long'})}</b><span>● ${isOpen()?'Открыто':'Закрыто'}</span></div><div class="progress"><i style="width:${pct}%"></i></div><div class="muted">${isOpen()?'Доступ закрывается в 23:00':'Доступ откроется в 00:00'} · Алматы</div></div>${isM()?`<div class="cardhead" style="margin:20px 0 14px"><h2>Последние события</h2><button class="link" data-act="go" data-page="Журнал">Журнал →</button></div><div class="activity">${logs.slice(0,3).map(eventRow).join('')||'<p class="sub">Событий пока нет.</p>'}</div>`:''}</section></div>`;
+<section class="card"><div class="cardhead"><h2>Доступ к заданиям</h2><span class="pill" style="background:${isOpen()?'var(--mint)':'#fff0ee'};color:${isOpen()?'var(--green)':'#b84f4f'}">${isOpen()?'Открыт':'Закрыт'}</span></div><div class="today"><div class="todaytop"><b>${fmtAlmaty(now(),{day:'numeric',month:'long'})}</b><span>● ${isOpen()?'Открыто':'Закрыто'}</span></div><div class="progress"><i style="width:${pct}%"></i></div><div class="muted">${isOpen()?'Доступ закрывается в 20:00':hourNow()<6?'Доступ откроется в 06:00':'Доступ откроется завтра в 06:00'} · Алматы</div></div>${isM()?`<div class="cardhead" style="margin:20px 0 14px"><h2>Последние события</h2><button class="link" data-act="go" data-page="Журнал">Журнал →</button></div><div class="activity">${logs.slice(0,3).map(eventRow).join('')||'<p class="sub">Событий пока нет.</p>'}</div>`:''}</section></div>`;
 }
 function viewColleagues(){
   const list=users.filter(u=>u.active!==false&&(isM()||u.branch===me.branch)).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
@@ -452,13 +452,16 @@ function taskRow(t){
 function allGroupNames(){return [...new Set(Object.values(groups).flat().map(g=>g.name))]}
 function taskPage(){
   const m=isM(),q=search.toLowerCase();
-  let list=visibleTasks().filter(t=>t.name.toLowerCase().includes(q)&&(!m||groupFilter==='Все группы'||t.group===groupFilter)&&(typeFilter==='Все типы'||t.taskType===typeFilter));
+  if(taskBranchFilter!=='Все филиалы'&&!branches.includes(taskBranchFilter))taskBranchFilter='Все филиалы';
+  const taskGroups=taskBranchFilter==='Все филиалы'?allGroupNames():[...new Set((groups[taskBranchFilter]||[]).map(g=>g.name))];
+  if(groupFilter!=='Все группы'&&!taskGroups.includes(groupFilter))groupFilter='Все группы';
+  let list=visibleTasks().filter(t=>t.name.toLowerCase().includes(q)&&(!m||taskBranchFilter==='Все филиалы'||(t.branch||'Центр')===taskBranchFilter)&&(!m||groupFilter==='Все группы'||t.group===groupFilter)&&(typeFilter==='Все типы'||t.taskType===typeFilter));
   const cmp={dateDesc:(a,b)=>b.accessDate.localeCompare(a.accessDate),dateAsc:(a,b)=>a.accessDate.localeCompare(b.accessDate),name:(a,b)=>a.name.localeCompare(b.name,'ru'),group:(a,b)=>a.group.localeCompare(b.group,'ru')||b.accessDate.localeCompare(a.accessDate)}[sortBy];
   if(m)list=[...list].sort(cmp);
   const opt=(v,cur)=>`<option ${v===cur?'selected':''}>${esc(v)}</option>`;
   return `<div class="heading"><div><h1>Задания</h1><p class="sub">${m?'Все задания: прошлые, сегодняшние и будущие. Пользователи видят задание только в день открытия.':'Задания вашей группы на сегодня.'}</p></div>${m?'<button class="btn" data-act="openTask">＋ Добавить задание</button>':''}</div>
-<div class="filters"><input class="field" data-in="search" aria-label="Найти задание" placeholder="⌕  Найти задание" value="${esc(search)}">${m?`<select class="select" aria-label="Группа" data-chg="groupFilter">${['Все группы',...allGroupNames()].map(g=>opt(g,groupFilter)).join('')}</select>`:''}<select class="select" aria-label="Тип" data-chg="typeFilter">${['Все типы','Картинка','Документ','Музыка'].map(g=>opt(g,typeFilter)).join('')}</select>${m?`<select class="select" aria-label="Сортировка" data-chg="sortBy"><option value="dateDesc" ${sortBy==='dateDesc'?'selected':''}>Сначала новые</option><option value="dateAsc" ${sortBy==='dateAsc'?'selected':''}>Сначала старые</option><option value="name" ${sortBy==='name'?'selected':''}>По названию</option><option value="group" ${sortBy==='group'?'selected':''}>По группе</option></select>`:`<span class="pill" style="padding:10px 13px">Сегодня · ${fmtAlmaty(now(),{day:'numeric',month:'long'})}</span>`}</div>
-<div class="card">${list.map(taskRow).join('')||`<p class="sub">${m?'Заданий пока нет.':'На сегодня заданий пока нет.'}</p>`}${m?'':'<div class="notice">🔒 Вчерашние и будущие задания не отображаются. Скачивание доступно с 00:00 до 23:00 по времени Алматы.</div>'}</div>`;
+<div class="filters"><input class="field" data-in="search" aria-label="Найти задание" placeholder="⌕  Найти задание" value="${esc(search)}">${m?`<select class="select" aria-label="Филиал" data-chg="taskBranchFilter">${['Все филиалы',...branches].map(b=>opt(b,taskBranchFilter)).join('')}</select><select class="select" aria-label="Группа" data-chg="groupFilter">${['Все группы',...taskGroups].map(g=>opt(g,groupFilter)).join('')}</select>`:''}<select class="select" aria-label="Тип" data-chg="typeFilter">${['Все типы','Картинка','Документ','Музыка'].map(g=>opt(g,typeFilter)).join('')}</select>${m?`<select class="select" aria-label="Сортировка" data-chg="sortBy"><option value="dateDesc" ${sortBy==='dateDesc'?'selected':''}>Сначала новые</option><option value="dateAsc" ${sortBy==='dateAsc'?'selected':''}>Сначала старые</option><option value="name" ${sortBy==='name'?'selected':''}>По названию</option><option value="group" ${sortBy==='group'?'selected':''}>По группе</option></select>`:`<span class="pill" style="padding:10px 13px">Сегодня · ${fmtAlmaty(now(),{day:'numeric',month:'long'})}</span>`}</div>
+<div class="card">${list.map(taskRow).join('')||`<p class="sub">${m?'Заданий пока нет.':'На сегодня заданий пока нет.'}</p>`}${m?'':'<div class="notice">🔒 Вчерашние и будущие задания не отображаются. Скачивание доступно с 06:00 до 20:00 по времени Алматы.</div>'}</div>`;
 }
 function fillGroupSelect(selId,branch,sel){
   const s=$(selId);if(!s)return;const gs=groups[branch]||[];
@@ -649,7 +652,7 @@ function logPage(){
   return `<div class="heading"><div><h1>Журнал активности</h1><p class="sub">Входы и скачивания за последние 30 дней. IP-адреса не сохраняются.</p></div><button class="btn secondary small">↓ Экспорт журнала</button></div><div class="filters"><input class="field" data-in="search" aria-label="Поиск" placeholder="⌕  Имя или событие" value="${esc(search)}"><select class="select" aria-label="Период"><option>Последние 30 дней</option><option>Сегодня</option><option>7 дней</option></select></div><div class="card tablewrap"><table class="table"><thead><tr><th>Пользователь</th><th>Действие</th><th>Дата и время</th><th>Устройство</th></tr></thead><tbody>${logs.filter(l=>(l.user+l.what).toLowerCase().includes(q)).map(l=>`<tr><td><b>${esc(l.user)}</b></td><td>${esc(l.what)}</td><td>${l.ts?fmtTs(l.ts):esc(l.time||'')}</td><td style="color:var(--muted)">Браузер</td></tr>`).join('')}</tbody></table></div>`;
 }
 function settingsPage(){
-  return `<div class="heading"><div><h1>Настройки центра</h1><p class="sub">Рабочее пространство и расписание доступа.</p></div></div><div class="grid"><section class="card"><div class="cardhead"><h2>Учебный центр</h2><button class="link">Изменить</button></div><div class="task"><div class="taskinfo"><b>Часовой пояс</b><small>Asia/Almaty (UTC+5)</small></div></div><div class="task"><div class="taskinfo"><b>Окно доступа к заданиям</b><small>Каждый день с 00:00 до 23:00</small></div></div><div class="task"><div class="taskinfo"><b>Хранение журнала</b><small>30 дней · без IP-адресов</small></div></div></section><section class="card"><div class="cardhead"><h2>Защита материалов</h2><span class="pill">Включена</span></div><p class="sub" style="line-height:1.8">Водяной знак с именем и ID поверх страницы. Скрытие содержимого, когда окно неактивно. Запрет выделения и контекстного меню на заданиях. Файлы можно скачать только в день задания.</p><div class="notice">Защита снижает риск утечки, но не может остановить снимок экрана внешним устройством.</div></section></div>`;
+  return `<div class="heading"><div><h1>Настройки центра</h1><p class="sub">Рабочее пространство и расписание доступа.</p></div></div><div class="grid"><section class="card"><div class="cardhead"><h2>Учебный центр</h2><button class="link">Изменить</button></div><div class="task"><div class="taskinfo"><b>Часовой пояс</b><small>Asia/Almaty (UTC+5)</small></div></div><div class="task"><div class="taskinfo"><b>Окно доступа к заданиям</b><small>Каждый день с 06:00 до 20:00</small></div></div><div class="task"><div class="taskinfo"><b>Хранение журнала</b><small>30 дней · без IP-адресов</small></div></div></section><section class="card"><div class="cardhead"><h2>Защита материалов</h2><span class="pill">Включена</span></div><p class="sub" style="line-height:1.8">Водяной знак с именем и ID поверх страницы. Скрытие содержимого, когда окно неактивно. Запрет выделения и контекстного меню на заданиях. Файлы можно скачать только в день задания.</p><div class="notice">Защита снижает риск утечки, но не может остановить снимок экрана внешним устройством.</div></section></div>`;
 }
 
 /* ---------- филиалы и группы ---------- */
@@ -673,7 +676,7 @@ function groupsPage(){
   }
   const opts=branches.map(x=>`<option value="${esc(x)}" ${x===b?'selected':''}>${esc(x)}</option>`).join('');
   const gs=groups[b]||[];
-  return `<div class="heading"><div><h1>Группы</h1><p class="sub">Выберите филиал и откройте группу, чтобы увидеть список детей.</p></div>${b?`<button class="btn secondary" data-act="groups" data-i="${branches.indexOf(b)}">＋ Добавить группу</button>`:''}</div><section class="card" style="margin-bottom:18px"><label for="groupBranchSelect">Филиал</label><select id="groupBranchSelect" class="select" data-chg="groupBranch" style="width:min(100%,420px)" ${branches.length?'':'disabled'}>${opts}</select></section><div class="grid branch-grid">${b?gs.map((g,j)=>`<section class="card branch-card"><div class="cardhead"><div><h2>${esc(g.name)}</h2><small class="sub">${esc(g.schedule||'Расписание не указано')} · ${ensureChildren(g).length} детей</small></div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="openRoster" data-i="${branches.indexOf(b)}" data-j="${j}">Дети группы</button><button class="btn secondary small" data-act="editGroup" data-i="${branches.indexOf(b)}" data-j="${j}">Изменить</button><button class="btn secondary small" data-act="delGroup" data-i="${branches.indexOf(b)}" data-j="${j}">Удалить</button></div></section>`).join(''):'<section class="card"><p class="sub">Сначала добавьте филиал.</p></section>'}${b&&!gs.length?'<section class="card"><p class="sub">В этом филиале пока нет групп. Нажмите «Добавить группу».</p></section>':''}</div>`;
+  return `<div class="heading"><div><h1>Группы</h1><p class="sub">Выберите филиал и откройте группу, чтобы увидеть список детей.</p></div>${b?`<button class="btn secondary" data-act="groups" data-i="${branches.indexOf(b)}">＋ Добавить группу</button>`:''}</div><section class="card" style="margin-bottom:18px"><div style="display:grid;gap:8px;max-width:420px"><label for="groupBranchSelect" style="display:block">Филиал</label><select id="groupBranchSelect" class="select" data-chg="groupBranch" style="width:100%" ${branches.length?'':'disabled'}>${opts}</select></div></section><div class="grid branch-grid">${b?gs.map((g,j)=>`<section class="card branch-card"><div class="cardhead"><div><h2>${esc(g.name)}</h2><small class="sub">${esc(g.schedule||'Расписание не указано')} · ${ensureChildren(g).length} детей</small></div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="openRoster" data-i="${branches.indexOf(b)}" data-j="${j}">Дети группы</button><button class="btn secondary small" data-act="editGroup" data-i="${branches.indexOf(b)}" data-j="${j}">Изменить</button><button class="btn secondary small" data-act="delGroup" data-i="${branches.indexOf(b)}" data-j="${j}">Удалить</button></div></section>`).join(''):'<section class="card"><p class="sub">Сначала добавьте филиал.</p></section>'}${b&&!gs.length?'<section class="card"><p class="sub">В этом филиале пока нет групп. Нажмите «Добавить группу».</p></section>':''}</div>`;
 }
 function subscriptionAmount(value){
   const n=Number(value);
@@ -912,7 +915,7 @@ document.addEventListener('click',e=>{
   fn(el.dataset,el);
 });
 const CHG={
-  groupFilter:el=>{groupFilter=el.value;render()},typeFilter:el=>{typeFilter=el.value;render()},sortBy:el=>{sortBy=el.value;render()},
+  groupFilter:el=>{groupFilter=el.value;render()},taskBranchFilter:el=>{taskBranchFilter=el.value;groupFilter='Все группы';render()},typeFilter:el=>{typeFilter=el.value;render()},sortBy:el=>{sortBy=el.value;render()},
   groupBranch:el=>{selectedGroupBranch=el.value;rosterGroupIndex=null;render()},childBranch:el=>childGroupOptions(el.value,''),
   inviteBranch:el=>fillGroupSelect('f_group',el.value),editBranch:el=>fillGroupSelect('eu_group',el.value),
   taskBranch:el=>fillGroupSelect('f_group',el.value),taskBranches:()=>setTaskGroups(),
