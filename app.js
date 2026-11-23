@@ -157,12 +157,12 @@ function fmtTs(v){
 }
 
 /* ---------- состояние ---------- */
-let me=null,page='Главная',search='',groupFilter='Все группы',typeFilter='Все типы',sortBy='dateDesc',busy=false,confirmCb=null,openDayKey=null;
+let me=null,page='Главная',search='',groupFilter='Все группы',typeFilter='Все типы',sortBy='dateDesc',busy=false,confirmCb=null,openDayKey=null,selectedGroupBranch='',rosterGroupIndex=null;
 const t0=dayKey().split('-');const cal={y:+t0[0],m:+t0[1]-1};
 const isM=()=>!!me&&me.role==='Ментор';
 function need(){const m=me&&users.find(u=>u.id===me.id);if(m&&m.role==='Ментор'&&m.active!==false)return true;toast('Это действие доступно только ментору');return false}
-const icons={Главная:'⌂',Задания:'▤',Календарь:'▦',Пользователи:'♙',Филиалы:'⌖',Журнал:'◷',Настройки:'⚙',Профиль:'◉'};
-const MENTOR_PAGES=['Пользователи','Филиалы','Журнал','Настройки'];
+const icons={Главная:'⌂',Задания:'▤',Календарь:'▦',Пользователи:'♙',Филиалы:'⌖',Группы:'▦',Журнал:'◷',Настройки:'⚙',Профиль:'◉'};
+const MENTOR_PAGES=['Пользователи','Филиалы','Группы','Журнал','Настройки'];
 const initials=s=>String(s).split(' ').filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();
 
 function log(what,kind){
@@ -344,7 +344,7 @@ function boot(){
 /* ---------- оболочка ---------- */
 function avatarContent(u){return u.photoData?`<img src="${u.photoData}" alt="Фото профиля" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:esc(initials(u.name))}
 function shell(){
-  const menu=isM()?['Главная','Задания','Календарь','Пользователи','Филиалы','Журнал','Настройки','Профиль']:['Главная','Задания','Профиль'];
+  const menu=isM()?['Главная','Задания','Календарь','Пользователи','Филиалы','Группы','Журнал','Настройки','Профиль']:['Главная','Задания','Профиль'];
   if(page!=='Профиль'&&!menu.includes(page))page='Главная';
   $('app').innerHTML=`<div class="app"><aside class="side"><div class="brand"><img class="brandlogo" src="ukids-logo.jpg" alt="U kids"></div><div class="workspace"><b>${isM()?'U kids · Администратор':esc(me.branch)}</b>Алматы · рабочее пространство</div><div class="navlabel">Меню</div><nav class="nav${menu.length>4?' nav-many':''}">${menu.map(x=>`<button class="${page===x?'active':''}" data-act="go" data-page="${x}"><span class="ico">${icons[x]}</span><span>${x}</span></button>`).join('')}</nav><div class="sidebottom"><div class="profile-mini" role="button" tabindex="0" data-act="go" data-page="Профиль" title="Профиль"><div class="avatar">${avatarContent(me)}</div><div><b>${esc(me.name)}</b><small>${isM()?'Администратор сайта':esc(me.role)+' · '+esc(me.id)}</small></div></div></div></aside><main class="main"><div class="top"><div class="crumb">U kids <span style="padding:0 6px">/</span> ${page}</div><div class="topright"><div class="status" id="cloudStatus"><i class="dot" style="background:${cloudOnline?'#36a276':'#c95d5d'}"></i> Доступ 00:00–23:00 · ${cloudOnline?'облако':'локально'}</div><div class="date" id="date"></div><button class="btn secondary small" data-act="logout">Выйти</button><div class="avatar" role="button" tabindex="0" data-act="go" data-page="Профиль" title="Профиль">${avatarContent(me)}</div></div></div><div id="content"></div></main></div>`;
   $('date').textContent=fmtAlmaty(now(),{weekday:'short',day:'numeric',month:'long'});
@@ -360,7 +360,7 @@ function render(){
   const c=$('content');if(!c||!me)return;
   if(MENTOR_PAGES.includes(page)&&!isM())page='Главная';
   if(page==='Календарь'&&!isM())page='Главная';
-  c.innerHTML=({Главная:home,Задания:taskPage,Календарь:calendarPage,Пользователи:userPage,Журнал:logPage,Филиалы:branchPage,Профиль:profilePage,Настройки:settingsPage}[page]||home)();
+  c.innerHTML=({Главная:home,Задания:taskPage,Календарь:calendarPage,Пользователи:userPage,Журнал:logPage,Филиалы:branchPage,Группы:groupsPage,Профиль:profilePage,Настройки:settingsPage}[page]||home)();
 }
 
 /* ---------- защита ---------- */
@@ -637,8 +637,69 @@ function settingsPage(){
 
 /* ---------- филиалы и группы ---------- */
 function branchPage(){
-  return `<div class="heading"><div><h1>Филиалы и группы</h1><p class="sub">Создавайте группы и задавайте расписание: утреннее или после обеда.</p></div><button class="btn" data-act="addBranch">＋ Добавить филиал</button></div><div class="grid branch-grid">${branches.map((b,i)=>`<section class="card branch-card"><div class="cardhead"><h2>${esc(b)}</h2><div><button class="btn secondary small" data-act="editBranch" data-i="${i}">Филиал</button> <button class="btn secondary small" data-act="groups" data-i="${i}">Группы</button> <button class="btn secondary small" data-act="delBranch" data-i="${i}">Удалить</button></div></div>${(groups[b]||[]).map(g=>`<div class="task"><div class="taskinfo"><b>${esc(g.name)}</b><small>${esc(g.schedule)} группа</small></div></div>`).join('')||'<p class="sub">Группы ещё не добавлены.</p>'}</section>`).join('')}</div>`;
+  return `<div class="heading"><div><h1>Филиалы</h1><p class="sub">Выберите филиал, чтобы открыть список его групп.</p></div><button class="btn" data-act="addBranch">＋ Добавить филиал</button></div><div class="grid branch-grid">${branches.map((b,i)=>`<section class="card branch-card"><div class="cardhead"><h2>${esc(b)}</h2></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="selectBranch" data-i="${i}">Открыть группы</button><button class="btn secondary small" data-act="editBranch" data-i="${i}">Изменить филиал</button><button class="btn secondary small" data-act="delBranch" data-i="${i}">Удалить</button></div></section>`).join('')||'<section class="card"><p class="sub">Филиалов пока нет.</p></section>'}</div>`;
 }
+function ensureChildren(g){
+  if(!Array.isArray(g.children))g.children=[];
+  g.children=g.children.filter(c=>c&&typeof c==='object');
+  g.children.forEach(c=>{if(!c.id)c.id=uid('C')});
+  return g.children;
+}
+function groupsPage(){
+  if(!need())return '';
+  if(!branches.includes(selectedGroupBranch))selectedGroupBranch=branches[0]||'';
+  const b=selectedGroupBranch;
+  if(rosterGroupIndex!==null){
+    const g=(groups[b]||[])[rosterGroupIndex];
+    if(g)return groupRosterPage(b,rosterGroupIndex,g);
+    rosterGroupIndex=null;
+  }
+  const opts=branches.map(x=>`<option value="${esc(x)}" ${x===b?'selected':''}>${esc(x)}</option>`).join('');
+  const gs=groups[b]||[];
+  return `<div class="heading"><div><h1>Группы</h1><p class="sub">Выберите филиал и откройте группу, чтобы увидеть список детей.</p></div>${b?`<button class="btn secondary" data-act="groups" data-i="${branches.indexOf(b)}">＋ Добавить группу</button>`:''}</div><section class="card" style="margin-bottom:18px"><label for="groupBranchSelect">Филиал</label><select id="groupBranchSelect" class="select" data-chg="groupBranch" style="width:min(100%,420px)" ${branches.length?'':'disabled'}>${opts}</select></section><div class="grid branch-grid">${b?gs.map((g,j)=>`<section class="card branch-card"><div class="cardhead"><div><h2>${esc(g.name)}</h2><small class="sub">${esc(g.schedule||'Расписание не указано')} · ${ensureChildren(g).length} детей</small></div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="openRoster" data-i="${branches.indexOf(b)}" data-j="${j}">Дети группы</button><button class="btn secondary small" data-act="editGroup" data-i="${branches.indexOf(b)}" data-j="${j}">Изменить</button><button class="btn secondary small" data-act="delGroup" data-i="${branches.indexOf(b)}" data-j="${j}">Удалить</button></div></section>`).join(''):'<section class="card"><p class="sub">Сначала добавьте филиал.</p></section>'}${b&&!gs.length?'<section class="card"><p class="sub">В этом филиале пока нет групп. Нажмите «Добавить группу».</p></section>':''}</div>`;
+}
+function groupRosterPage(b,i,g){
+  const kids=ensureChildren(g);
+  const fields=[['ФИО родителя','parentName'],['Номер телефона','parentPhone'],['Тип абонемента','subscriptionType'],['Использовано занятий','lessonsUsed'],['Скидка','discount'],['Этап','stage'],['Обратная связь','feedback'],['Примечание','notes']];
+  const items=kids.map((c,k)=>`<section class="card" style="margin-bottom:14px"><div class="cardhead"><div><h2>${esc(c.fullName||'Без имени')}</h2><small class="sub">${esc(b)} · ${esc(g.name)}</small></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="pill">${esc(c.status||'Ходит')}</span><button class="btn secondary small" data-act="editChild" data-i="${branches.indexOf(b)}" data-j="${i}" data-k="${k}">Изменить</button><button class="btn secondary small" data-act="delChild" data-i="${branches.indexOf(b)}" data-j="${i}" data-k="${k}">Удалить</button></div></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 18px">${fields.map(([label,key])=>`<div><small style="display:block;color:var(--muted);margin-bottom:4px">${label}</small><b style="font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere">${esc(c[key]===0?0:(c[key]||'—'))}</b></div>`).join('')}</div></section>`).join('');
+  return `<div class="heading"><div><h1>${esc(g.name)}</h1><p class="sub">${esc(b)} · ${esc(g.schedule||'Расписание не указано')}</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" data-act="backGroups">← К группам</button><button class="btn" data-act="addChild" data-i="${branches.indexOf(b)}" data-j="${i}">＋ Добавить ребёнка</button></div></div>${items||'<section class="card"><p class="sub">В этой группе пока нет детей. Добавьте первого ребёнка.</p></section>'}`;
+}
+function childForm(bi,gi,ci){
+  if(!need())return;
+  const b=branches[bi],g=(groups[b]||[])[gi];if(!g)return;
+  const kids=ensureChildren(g),edit=ci!==undefined&&ci!==null,child=edit?kids[ci]:null;
+  if(edit&&!child)return;
+  const status=child?.status||'Ходит';
+  const choices=['Ходит','Заморозка','Ушёл','Болеет'].map(x=>`<option value="${esc(x)}" ${x===status?'selected':''}>${esc(x)}</option>`).join('');
+  const input=(label,name,type='text',value='',attrs='',full=false)=>`<label${full?' class="full"':''}>${label}<input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
+  openModal('mChild',`<form data-form="child" data-i="${bi}" data-j="${gi}" data-k="${edit?ci:''}" novalidate><h2 id="mChild-t">${edit?'Редактировать данные ребёнка':'Добавить ребёнка'}</h2><p>${esc(b)} · ${esc(g.name)}</p><div class="formgrid">${input('ФИО ребёнка <span class="req">*</span>','fullName','text',child?.fullName||'','required',true)}${input('ФИО родителя <span class="req">*</span>','parentName','text',child?.parentName||'','required')}${input('Номер телефона <span class="req">*</span>','parentPhone','tel',child?.parentPhone||'','required autocomplete="tel"')}${input('Тип абонемента','subscriptionType','text',child?.subscriptionType||'')}${input('Использовано занятий','lessonsUsed','number',child?.lessonsUsed??0,'min="0" step="1"')}${input('Скидка','discount','text',child?.discount??'')}${input('Этап','stage','text',child?.stage||'')}<label>Статус<select name="status">${choices}</select></label><label class="full">Обратная связь<textarea name="feedback" rows="3" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:11px;resize:vertical">${esc(child?.feedback||'')}</textarea></label><label class="full">Примечание<textarea name="notes" rows="3" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:11px;resize:vertical">${esc(child?.notes||'')}</textarea></label></div><div class="err" role="alert"></div><div class="modalfoot"><button type="button" class="btn secondary" data-act="close">Отмена</button><button class="btn" type="submit">Сохранить</button></div></form>`,{wide:true});
+}
+function saveChild(f){
+  if(!need())return;
+  const bi=+f.dataset.i,gi=+f.dataset.j,b=branches[bi],g=(groups[b]||[])[gi];if(!g)return;
+  const el=name=>f.elements.namedItem(name),value=name=>String(el(name)?.value||'').trim();
+  const fullName=value('fullName'),parentName=value('parentName'),parentPhone=value('parentPhone');
+  if(!fullName)return ferr(f,'Укажите ФИО ребёнка');
+  if(!parentName)return ferr(f,'Укажите ФИО родителя');
+  if(parentPhone.replace(/\D/g,'').length<7)return ferr(f,'Проверьте номер телефона родителя');
+  const lessonsRaw=value('lessonsUsed'),lessons=lessonsRaw===''?0:Number(lessonsRaw),discount=value('discount');
+  if(!Number.isInteger(lessons)||lessons<0)return ferr(f,'Количество использованных занятий должно быть целым числом от 0');
+  const kids=ensureChildren(g),edit=f.dataset.k!=='',idx=+f.dataset.k,old=edit?kids[idx]:null;
+  if(edit&&!old)return ferr(f,'Ребёнок уже удалён или изменён');
+  const record={...(old||{}),id:old?.id||uid('C'),fullName,parentName,parentPhone,status:value('status')||'Ходит',subscriptionType:value('subscriptionType'),lessonsUsed:lessons,discount,stage:value('stage'),feedback:value('feedback'),notes:value('notes')};
+  if(edit)kids[idx]=record;else kids.push(record);
+  saveAll();closeModal('mChild');selectedGroupBranch=b;rosterGroupIndex=gi;render();toast(edit?'Данные ребёнка обновлены':'Ребёнок добавлен в группу');
+}
+function deleteChild(bi,gi,ci){
+  if(!need())return;
+  const b=branches[bi],g=(groups[b]||[])[gi],kids=g&&ensureChildren(g),c=kids&&kids[ci];if(!c)return;
+  confirmBox('Удалить ребёнка?',`Запись «${c.fullName||'Без имени'}» будет удалена из группы.`,'Удалить',()=>{
+    if(!need())return;
+    const branch=branches[bi],group=(groups[branch]||[])[gi],list=group&&ensureChildren(group);if(!list||!list[ci])return;
+    list.splice(ci,1);saveAll();selectedGroupBranch=branch;rosterGroupIndex=gi;render();toast('Запись ребёнка удалена');
+  });
+}
+
 function branchForm(i){
   if(!need())return;const edit=i!==undefined&&i!=='';const b=edit?branches[+i]:'';
   openModal('mBranch',`<form data-form="branch" data-i="${edit?+i:''}" novalidate><h2 id="mBranch-t">${edit?'Редактировать филиал':'Новый филиал'}</h2><p>${edit?'Новое название обновится также у связанных пользователей и заданий.':'Введите название филиала.'}</p><div class="formgrid"><label class="full">Название филиала <span class="req">*</span><input id="branchName" value="${esc(b)}"></label></div><div class="err" role="alert"></div><div class="modalfoot"><button type="button" class="btn secondary" data-act="close">Отмена</button><button class="btn" type="submit">Сохранить</button></div></form>`);
@@ -648,7 +709,7 @@ function saveBranch(f){
   if(!n)return ferr(f,'Введите название филиала');
   if(branches.some((b,j)=>(!edit||j!==i)&&b.toLowerCase()===n.toLowerCase()))return ferr(f,'Такой филиал уже существует');
   if(edit){
-    const old=branches[i];branches[i]=n;
+    const old=branches[i];branches[i]=n;if(selectedGroupBranch===old)selectedGroupBranch=n;
     if(groups[old]&&old!==n){groups[n]=groups[old];delete groups[old]}
     users.forEach(u=>{if(u.branch===old)u.branch=n});tasks.forEach(t=>{if(t.branch===old)t.branch=n});
     if(me.branch===old)me.branch=n;
@@ -658,6 +719,7 @@ function saveBranch(f){
 function delBranch(i){
   if(!need())return;const b=branches[+i];if(b===undefined)return;
   if(users.some(u=>u.branch===b)||tasks.some(t=>(t.branch||'Центр')===b))return toast('Сначала переназначьте пользователей и задания из этого филиала');
+  if((groups[b]||[]).some(g=>Array.isArray(g.children)&&g.children.length))return toast('Сначала перенесите или удалите детей из групп филиала');
   confirmBox('Удалить филиал?',`Филиал «${b}» и его группы будут удалены.`,'Удалить',()=>{
     if(!need())return;branches.splice(+i,1);delete groups[b];saveAll();render();toast('Филиал удалён');
   });
@@ -671,7 +733,7 @@ function addGroup(f){
   if(!n)return ferr(f,'Введите название группы');
   groups[b]=groups[b]||[];
   if(groups[b].some(g=>g.name.toLowerCase()===n.toLowerCase()))return ferr(f,'Такая группа уже есть в филиале');
-  groups[b].push({name:n,schedule:$('newGroupSchedule').value});saveAll();groupsModal(i);render();toast('Группа добавлена');
+  groups[b].push({name:n,schedule:$('newGroupSchedule').value,children:[]});saveAll();groupsModal(i);render();toast('Группа добавлена');
 }
 function editGroup(i,j){
   if(!need())return;const b=branches[+i],g=(groups[b]||[])[+j];if(!g)return;
@@ -689,6 +751,7 @@ function saveGroup(f){
 function delGroup(i,j){
   if(!need())return;const b=branches[+i],g=(groups[b]||[])[+j];if(!g)return;
   if(users.some(u=>u.branch===b&&u.group===g.name)||tasks.some(t=>(t.branch||'Центр')===b&&t.group===g.name))return toast('Сначала переназначьте пользователей и задания этой группы');
+  if(Array.isArray(g.children)&&g.children.length)return toast('Сначала перенесите или удалите детей из этой группы');
   confirmBox('Удалить группу?',`Группа «${g.name}» будет удалена.`,'Удалить',()=>{
     if(!need())return;groups[b].splice(+j,1);saveAll();groupsModal(+i);render();toast('Группа удалена');
   });
@@ -718,7 +781,7 @@ async function savePassword(f){
 }
 
 /* ---------- формы ---------- */
-const MGR_FORMS=['invite','editUser','reset','branch','addGroup','saveGroup','task'];
+const MGR_FORMS=['invite','editUser','reset','branch','addGroup','saveGroup','task','child'];
 const FORMS={
   async login(f){
     const err=$('lerr');err.textContent='';
@@ -738,7 +801,7 @@ const FORMS={
     const e=pwError(f.elements.pw.value,f.elements.pw2.value);if(e)return ferr(f,e);
     await setPw(me,f.elements.pw.value,false);log('Сменил(а) пароль','auth');saveAll();shell();toast('Пароль изменён');
   },
-  invite:saveInvite,editUser:saveEditedUser,reset:saveReset,branch:saveBranch,addGroup,saveGroup,task:saveTask,profile:saveProfile,password:savePassword
+  invite:saveInvite,editUser:saveEditedUser,reset:saveReset,branch:saveBranch,addGroup,saveGroup,child:saveChild,task:saveTask,profile:saveProfile,password:savePassword
 };
 async function guard(fn){if(busy)return;busy=true;try{await fn()}catch(e){console.error(e);toast('Произошла ошибка. Попробуйте ещё раз')}finally{busy=false}}
 document.addEventListener('submit',e=>{
@@ -748,7 +811,7 @@ document.addEventListener('submit',e=>{
 });
 
 /* ---------- действия ---------- */
-const MGR_ACTS=['openTask','addTaskDay','editTask','delTask','openInvite','editUser','toggleUser','delUser','resetUser','addBranch','editBranch','delBranch','groups','editGroup','delGroup','day'];
+const MGR_ACTS=['openTask','addTaskDay','editTask','delTask','openInvite','editUser','toggleUser','delUser','resetUser','addBranch','editBranch','delBranch','groups','editGroup','delGroup','selectBranch','openRoster','addChild','editChild','delChild','day'];
 const A={
   go:d=>go(d.page),viewColleagues:()=>viewColleagues(),viewDownloads:()=>viewTodayDownloads(),viewGroups:()=>viewBranchGroups(),logout:()=>logout(),close:(d,el)=>closeEl(el.closest('.overlay')),
   confirmYes:()=>{const cb=confirmCb;confirmCb=null;closeModal('mConfirm');if(cb)cb()},
@@ -756,7 +819,7 @@ const A={
   download:d=>guard(()=>download(d.id)),preview:d=>guard(()=>preview(d.id)),
   calPrev:()=>calShift(-1),calNext:()=>calShift(1),calToday:()=>{const t=dayKey().split('-');cal.y=+t[0];cal.m=+t[1]-1;render()},day:d=>showDay(d.day),
   openInvite:inviteForm,editUser:d=>editUser(d.id),toggleUser:d=>toggleUser(d.id),delUser:d=>delUser(d.id),resetUser:d=>resetUser(d.id),
-  addBranch:()=>branchForm(),editBranch:d=>branchForm(d.i),delBranch:d=>delBranch(d.i),groups:d=>groupsModal(d.i),editGroup:d=>editGroup(d.i,d.j),delGroup:d=>delGroup(d.i,d.j)
+  addBranch:()=>branchForm(),editBranch:d=>branchForm(d.i),delBranch:d=>delBranch(d.i),groups:d=>groupsModal(d.i),editGroup:d=>editGroup(d.i,d.j),delGroup:d=>delGroup(d.i,d.j),selectBranch:d=>{selectedGroupBranch=branches[+d.i]||'';rosterGroupIndex=null;go('Группы')},openRoster:d=>{selectedGroupBranch=branches[+d.i]||'';rosterGroupIndex=+d.j;go('Группы')},backGroups:()=>{rosterGroupIndex=null;go('Группы')},addChild:d=>childForm(+d.i,+d.j),editChild:d=>childForm(+d.i,+d.j,+d.k),delChild:d=>deleteChild(+d.i,+d.j,+d.k)
 };
 document.addEventListener('click',e=>{
   if(e.target.classList&&e.target.classList.contains('overlay')&&e.target.dataset.closable){closeEl(e.target);return}
@@ -769,6 +832,7 @@ document.addEventListener('click',e=>{
 });
 const CHG={
   groupFilter:el=>{groupFilter=el.value;render()},typeFilter:el=>{typeFilter=el.value;render()},sortBy:el=>{sortBy=el.value;render()},
+  groupBranch:el=>{selectedGroupBranch=el.value;rosterGroupIndex=null;render()},
   inviteBranch:el=>fillGroupSelect('f_group',el.value),editBranch:el=>fillGroupSelect('eu_group',el.value),
   taskBranch:el=>fillGroupSelect('f_group',el.value),taskBranches:()=>setTaskGroups(),
   taskType:el=>{const f=$('f_file');if(f){f.accept=ACCEPT[el.value];f.value=''}const h=$('formatHint');if(h)h.textContent=`Форматы: ${FORMAT_HINT[el.value]}. До 25 МБ. Можно загрузить заранее и назначить день открытия.`}
