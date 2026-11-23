@@ -390,13 +390,35 @@ function home(){
   const who=first;
   const h=hourNow(),pct=Math.max(0,Math.min(100,Math.round((h+almatyDate().getUTCMinutes()/60)/23*100)));
   const list=visibleTasks().filter(t=>t.accessDate===today).slice(0,4);
-  const fourth=isM()?`<div class="stat"><div class="stat-label">Активные филиалы <span class="spark">⌖</span></div><div class="stat-num">${branches.length}</div><div class="stat-note">${esc(branches.join(', '))||'—'}</div></div>`:`<div class="stat"><div class="stat-label">Группы <span class="spark">⌖</span></div><div class="stat-num">${(groups[me.branch]||[]).length}</div><div class="stat-note">в вашем филиале</div></div>`;
+  const fourth=isM()?`<div class="stat" role="button" tabindex="0" data-act="viewGroups"><div class="stat-label">Активные филиалы <span class="spark">⌖</span></div><div class="stat-num">${branches.length}</div><div class="stat-note">${esc(branches.join(', '))||'—'}</div></div>`:`<div class="stat" role="button" tabindex="0" data-act="viewGroups"><div class="stat-label">Группы <span class="spark">⌖</span></div><div class="stat-num">${(groups[me.branch]||[]).length}</div><div class="stat-note">в вашем филиале</div></div>`;
   return `<div class="heading"><div><h1>${greeting()}, ${esc(who)} 👋</h1><p class="sub">${isM()?'Вот что происходит в вашем центре сегодня.':'Вот что происходит в филиале «'+esc(me.branch)+'» сегодня.'}</p></div>${isM()?'<button class="btn" data-act="openTask">＋ Добавить задание</button>':''}</div>
-<div class="stats"><div class="stat"><div class="stat-label">Пользователи <span class="spark">↗</span></div><div class="stat-num">${sc.users.length}</div><div class="stat-note">${isM()?'в учебном центре':'в вашем филиале'}</div></div>
-<div class="stat"><div class="stat-label">Задания на сегодня <span class="spark">▤</span></div><div class="stat-num">${todays.length}</div><div class="stat-note">${isM()?'для разных групп':'для вашего филиала'}</div></div>
-<div class="stat"><div class="stat-label">Скачивания сегодня <span class="spark">↓</span></div><div class="stat-num">${dl}</div><div class="stat-note">за текущий день</div></div>${fourth}</div>
+<div class="stats"><div class="stat" role="button" tabindex="0" data-act="viewColleagues"><div class="stat-label">Пользователи <span class="spark">↗</span></div><div class="stat-num">${sc.users.length}</div><div class="stat-note">${isM()?'в учебном центре':'в вашем филиале'}</div></div>
+<div class="stat" role="button" tabindex="0" data-act="go" data-page="Задания"><div class="stat-label">Задания на сегодня <span class="spark">▤</span></div><div class="stat-num">${todays.length}</div><div class="stat-note">${isM()?'для разных групп':'для вашего филиала'}</div></div>
+<div class="stat" role="button" tabindex="0" data-act="viewDownloads"><div class="stat-label">Скачивания сегодня <span class="spark">↓</span></div><div class="stat-num">${dl}</div><div class="stat-note">за текущий день</div></div>${fourth}</div>
 <div class="grid"><section class="card"><div class="cardhead"><h2>Задания на сегодня</h2><button class="link" data-act="go" data-page="Задания">Все задания →</button></div>${list.map(taskRow).join('')||'<p class="sub">На сегодня заданий пока нет.</p>'}</section>
 <section class="card"><div class="cardhead"><h2>Доступ к заданиям</h2><span class="pill" style="background:${isOpen()?'var(--mint)':'#fff0ee'};color:${isOpen()?'var(--green)':'#b84f4f'}">${isOpen()?'Открыт':'Закрыт'}</span></div><div class="today"><div class="todaytop"><b>${fmtAlmaty(now(),{day:'numeric',month:'long'})}</b><span>● ${isOpen()?'Открыто':'Закрыто'}</span></div><div class="progress"><i style="width:${pct}%"></i></div><div class="muted">${isOpen()?'Доступ закрывается в 23:00':'Доступ откроется в 00:00'} · Алматы</div></div>${isM()?`<div class="cardhead" style="margin:20px 0 14px"><h2>Последние события</h2><button class="link" data-act="go" data-page="Журнал">Журнал →</button></div><div class="activity">${logs.slice(0,3).map(eventRow).join('')||'<p class="sub">Событий пока нет.</p>'}</div>`:''}</section></div>`;
+}
+function viewColleagues(){
+  const list=users.filter(u=>u.active!==false&&(isM()||u.branch===me.branch)).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
+  const title=isM()?'Пользователи учебного центра':`Коллеги · ${me.branch}`;
+  const items=list.map(u=>{
+    const context=isM()?[u.branch,u.group].filter(Boolean).join(' · '):u.group;
+    return `<div class="task"><div class="avatar">${esc(initials(u.name))}</div><div class="taskinfo"><b>${esc(u.name)}</b><small>${esc(u.role||'Участник')}${context?' · '+esc(context):''}</small></div></div>`;
+  }).join('')||'<p class="sub">В филиале пока нет активных пользователей.</p>';
+  openModal('mColleagues',`<h2 id="mColleagues-t">${esc(title)}</h2><p>${isM()?'Активные участники и их группы.':'Активные участники вашего филиала.'}</p><div>${items}</div><div class="modalfoot"><button type="button" class="btn secondary" data-act="close">Закрыть</button></div>`);
+}
+function viewTodayDownloads(){
+  const rows=logs.filter(l=>l.kind==='download'&&l.day===dayKey()&&(isM()||l.branch===me.branch)).sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const items=rows.map(l=>`<div class="event"><i class="eventdot"></i><div><b>${esc(l.user||'Пользователь')}</b><small>${esc(l.what||'Скачал(а) файл')}${l.ts?' · '+fmtTs(l.ts):''}${isM()&&l.branch?' · '+esc(l.branch):''}</small></div></div>`).join('');
+  openModal('mDownloads',`<h2 id="mDownloads-t">Скачивания сегодня</h2><p>${isM()?'По всему учебному центру.':`В филиале «${esc(me.branch)}».`}</p><div class="activity">${items||'<p class="sub">Сегодня скачиваний пока нет.</p>'}</div><div class="modalfoot"><button type="button" class="btn secondary" data-act="close">Закрыть</button></div>`);
+}
+function viewBranchGroups(){
+  const branchList=isM()?branches:[me.branch].filter(Boolean);
+  const html=branchList.map(b=>{
+    const items=(groups[b]||[]).map(g=>`<div class="task"><div class="taskinfo"><b>${esc(g.name)}</b><small>${esc(g.schedule||'Расписание не указано')}</small></div></div>`).join('');
+    return `<section style="margin-bottom:16px"><h3 style="margin:0 0 8px">${esc(b)}</h3>${items||'<p class="sub">В филиале пока нет групп.</p>'}</section>`;
+  }).join('');
+  openModal('mBranchGroups',`<h2 id="mBranchGroups-t">${isM()?'Группы по филиалам':`Группы · ${esc(me.branch)}`}</h2><div>${html}</div><div class="modalfoot"><button type="button" class="btn secondary" data-act="close">Закрыть</button></div>`);
 }
 function eventRow(l){return `<div class="event"><i class="eventdot"></i><div><b>${esc(l.user)} · ${esc(l.what)}</b><small>${l.ts?fmtTs(l.ts):esc(l.time||'')}</small></div></div>`}
 
@@ -728,7 +750,7 @@ document.addEventListener('submit',e=>{
 /* ---------- действия ---------- */
 const MGR_ACTS=['openTask','addTaskDay','editTask','delTask','openInvite','editUser','toggleUser','delUser','resetUser','addBranch','editBranch','delBranch','groups','editGroup','delGroup','day'];
 const A={
-  go:d=>go(d.page),logout:()=>logout(),close:(d,el)=>closeEl(el.closest('.overlay')),
+  go:d=>go(d.page),viewColleagues:()=>viewColleagues(),viewDownloads:()=>viewTodayDownloads(),viewGroups:()=>viewBranchGroups(),logout:()=>logout(),close:(d,el)=>closeEl(el.closest('.overlay')),
   confirmYes:()=>{const cb=confirmCb;confirmCb=null;closeModal('mConfirm');if(cb)cb()},
   openTask:()=>taskForm(null),addTaskDay:d=>taskForm(null,d.day),editTask:d=>{const t=tasks.find(x=>x.id===d.id);if(t)taskForm(t)},delTask:d=>delTask(d.id),
   download:d=>guard(()=>download(d.id)),preview:d=>guard(()=>preview(d.id)),
